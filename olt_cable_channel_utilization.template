@@ -1,0 +1,11 @@
+Value CHANNEL ([UD]\d+)
+Value TOTAL (\d+)
+Value UTILIZATION_D20 (\d+)
+Value UTILIZATION_D30 (\d+)
+Value UTILIZATION_D31 (\d+)
+Value REAL_TIME_TRAFFIC (\d+)
+Value MAX_CAPACITY (\d+)
+
+Start
+	^\s+${CHANNEL}\s+${TOTAL}\s+${UTILIZATION_D20}\s+${UTILIZATION_D30}\s+${UTILIZATION_D31}\s+${REAL_TIME_TRAFFIC}\s+${MAX_CAPACITY} -> Record
+

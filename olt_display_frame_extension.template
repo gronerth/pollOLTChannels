@@ -1,0 +1,13 @@
+Value EXTENDING_PORT (\d+\s\/\d+\s\/\d+)
+Value ONT_ID (\d+)
+Value FRAME_ID (\d+)
+Value FRAME_SN (\w+)
+Value FRAME_TYPE (\w+)
+Value FRAME_STATE (\w+)
+Value LAST_OFFLINE ([-]|\w+)
+Value FRAME_DESCRIPTION (\w+)
+
+Start
+	^\s+${EXTENDING_PORT}\s+${ONT_ID}\s+${FRAME_ID}\s+${FRAME_SN}\s+${FRAME_TYPE}\s+${FRAME_STATE}\s+${LAST_OFFLINE}\s+${FRAME_DESCRIPTION} -> Record
+
+
