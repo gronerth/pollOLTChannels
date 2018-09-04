@@ -51,16 +51,22 @@ class DCCAP():
 			print(",".join(current_channel.print_summary()))
 	
 	def add_channel(self,name,total,d20,d30,d31,real_traffic,max_traffic):
+		type_docsis = "D3.0"
 		if d20 >0 :
-			type_docsis = "Docsis 2.0"
-		elif d30 >0:
-			type_docsis = "Docsis 3.0"
+			type_docsis = "D2.0&D3.0"
 		else:
-			type_docsis = "Docsis 3.1"
-		
+			is_upstream = name[0]=='U'
+                	channel_number = int(name[1:])
+                	if is_upstream :
+                        	if channel_number > 10:
+                                	type_docsis = "D3.1"
+                	else:
+                        	if channel_number > 32:
+                                	type_docsis = "D3.1"
+
 		if max_traffic == 0:
 			type_docsis = "Docsis disabled"
-		
+
 		utilization = d20 + d30 + d31
 		self.channels.append(Docsis_Channel(name,type_docsis,utilization,real_traffic,max_traffic))
 
