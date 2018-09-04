@@ -104,13 +104,13 @@ template2 = open("olt_cable_channel_utilization.template")
 re_table = textfsm.TextFSM(template1)
 fsm_results = re_table.ParseText(output)
 
-#print(fsm_results)
-
-re_table = textfsm.TextFSM(template2)
+#re_table = textfsm.TextFSM(template2)
 first_time = True
 if len(fsm_results) > 0:
 	for row in fsm_results:
-		dccap_olt_gpon_port = str(row[0])
+                re_table = None
+                re_table = textfsm.TextFSM(template2)
+                dccap_olt_gpon_port = str(row[0])
 		dccap_interface_name = "CABLE " + str(row[2]) + "/1/0"
 		#print(dccap_interface_name)
 		dccap_sn = str(row[3])
@@ -119,7 +119,7 @@ if len(fsm_results) > 0:
 		command = "display cable channel utilization " + str(row[2]) + "/1/0" + "\n\n"
 		output = net_connect.send_command(command,normalize=False)
 		fsm_results2 = re_table.ParseText(output)
-		current_dccap = DCCAP(dccap_olt_gpon_port,dccap_interface_name,dccap_alias,dccap_sn,dccap_status)
+                current_dccap = DCCAP(dccap_olt_gpon_port,dccap_interface_name,dccap_alias,dccap_sn,dccap_status)
 		for channel_row in fsm_results2:
 			current_dccap.add_channel(channel_row[0],channel_row[1],int(channel_row[2]),int(channel_row[3]),int(channel_row[4]),int(channel_row[5]),int(channel_row[6]))
 		dccap.append(current_dccap)
