@@ -15,6 +15,7 @@ parser.add_argument('--olt',dest='olt_name',required=True,help='Name of the OLT'
 parser.add_argument('--ssh_user',dest='ssh_user',default='rfalla',help='SSH user to connect to OLT')
 parser.add_argument('--ssh_pwd',dest='ssh_pwd',default='rfalla214',help='SSH users password to connect to OLT')
 parser.add_argument('--community',dest='community',default='u2000_ro',help='SNMP read community')
+parser.add_argument('--per_channel_bw',dest='per_channel_bw',default=False,help='True if you want traffic per channel')
 
 args = parser.parse_args()
 
@@ -49,7 +50,20 @@ class DCCAP():
 		print("channel,type_docsis,channel_utilization,real_traffic,max_traffic")
 		for current_channel in self.channels:
 			print(",".join(current_channel.print_summary()))
-	
+        def get_total_bandwidth(self):
+                downstream = 0
+                upstream = 0
+                for channel in self.channels:
+                    is_upstream = channel.name[0]=='U'
+                    is_downstream = channel.name[0]=='D'
+                    if is_upstream:
+                        upstream += channel.real_traffic
+                    elif is_downstream:
+                        downstream += channel.real_traffic
+
+                return(downstream,upstream)
+                    
+
 	def add_channel(self,name,total,d20,d30,d31,real_traffic,max_traffic):
 		type_docsis = "D3.0"
 		if d20 >0 :
@@ -99,7 +113,11 @@ class HuaweiOLTSSH(CiscoSSHConnection):
         return super(HuaweiOLTSSH, self).save_config(cmd=cmd, confirm=confirm)
 
 def print_header():
-	print("olt_name,ip_address,gpon_port,interface_cable,alias_name,channel,type_docsis,channel_utilization,real_traffic,max_traffic")
+        if args.per_channel_bw:
+	    print("olt_name,ip_address,gpon_port,interface_cable,alias_name,channel,type_docsis,channel_utilization,real_traffic,max_traffic")
+        else:
+	    print("olt_name,ip_address,gpon_port,interface_cable,alias_name,downstream_traffic,upstream_traffic")
+
 		
 net_connect = HuaweiOLTSSH(host=args.ip_address,username=args.ssh_user, password=args.ssh_pwd,device_type='cisco_ios')
 net_connect.enable()
@@ -133,15 +151,28 @@ if len(fsm_results) > 0:
 		if first_time:
 			first_time=False
 			print_header()
-		for current_channel in current_dccap.channels:
-			str_list = []
-			str_list.append(args.olt_name)
-			str_list.append(args.ip_address)
-			str_list.append(current_dccap.gpon_port)
-			str_list.append(current_dccap.interface_cable)
-			str_list.append(current_dccap.alias_name)
-			str_list.append((",").join(current_channel.print_summary()))
-			print((",").join(str_list))		
+                if args.per_channel_bw:
+		        for current_channel in current_dccap.channels:
+			    str_list = []
+			    str_list.append(args.olt_name)
+			    str_list.append(args.ip_address)
+			    str_list.append(current_dccap.gpon_port)
+			    str_list.append(current_dccap.interface_cable)
+			    str_list.append(current_dccap.alias_name)
+			    str_list.append((",").join(current_channel.print_summary()))
+			    print((",").join(str_list))
+                else:
+			    (dccap_down,dccap_up)=(current_dccap.get_total_bandwidth()) 
+                            str_list = []
+			    str_list.append(args.olt_name)
+			    str_list.append(args.ip_address)
+			    str_list.append(current_dccap.gpon_port)
+			    str_list.append(current_dccap.interface_cable)
+			    str_list.append(current_dccap.alias_name)
+			    str_list.append(str(dccap_down))
+			    str_list.append(str(dccap_up))
+			    print((",").join(str_list))
+
 
 net_connect.disconnect()
 
