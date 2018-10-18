@@ -7,6 +7,7 @@ import argparse
 
 
 dccap = []
+dccap_cm = {}
 
 
 parser = argparse.ArgumentParser(description='Poll parameters from OLT')
@@ -37,6 +38,12 @@ class Docsis_Channel():
 		str_list.append(str(self.max_traffic))
 		return str_list
 
+class DCCAP_modems_summary():
+        def __init__(self,Total,Online,Offline):
+                self.total = Total
+                self.online= Online
+                self.offline=Offline
+
 class DCCAP():
 	def __init__(self,olt_gpon_port,interface_cable,alias_name,serial,status):
 		self.interface_cable = interface_cable;
@@ -45,6 +52,7 @@ class DCCAP():
 		self.serial = serial
 		self.status = status
 		self.channels = []
+                self.cable_modem_summary = None
 	
 	def print_channel_summary(self):
 		print("channel,type_docsis,channel_utilization,real_traffic,max_traffic")
@@ -116,7 +124,7 @@ def print_header():
         if args.per_channel_bw:
 	    print("olt_name,ip_address,gpon_port,interface_cable,alias_name,channel,type_docsis,channel_utilization,real_traffic,max_traffic")
         else:
-	    print("olt_name,ip_address,gpon_port,interface_cable,alias_name,downstream_traffic,upstream_traffic")
+	    print("olt_name,ip_address,gpon_port,interface_cable,alias_name,cm_total,cm_online,cm_offline,downstream_traffic,upstream_traffic")
 
 		
 net_connect = HuaweiOLTSSH(host=args.ip_address,username=args.ssh_user, password=args.ssh_pwd,device_type='cisco_ios')
@@ -125,8 +133,23 @@ output = net_connect.send_command("display frame extension\n\n",normalize=False)
 
 template1 = open("olt_display_frame_extension.template")
 template2 = open("olt_cable_channel_utilization.template")
+template3 = open("olt_display_cable_modem_summary_statistics.template")
 re_table = textfsm.TextFSM(template1)
 fsm_results = re_table.ParseText(output)
+
+re_table = None
+re_table = textfsm.TextFSM(template3)
+output = net_connect.send_command("display cable modem summary statistics\n\n",normalize=False)
+fsm_results3 = re_table.ParseText(output)
+print(fsm_results3)
+
+if len(fsm_results3)>0:
+    for row in fsm_results3:
+                dccap_interface_name = "CABLE " + str(row[0]).replace(" ","")
+                dccap_cm_total = str(row[1])
+                dccap_cm_online = str(row[2])
+                dccap_cm_offline = str(row[3])
+                dccap_cm[dccap_interface_name] = DCCAP_modems_summary(dccap_cm_total,dccap_cm_online,dccap_cm_offline) 
 
 #re_table = textfsm.TextFSM(template2)
 first_time = True
@@ -144,6 +167,11 @@ if len(fsm_results) > 0:
 		output = net_connect.send_command(command,normalize=False)
 		fsm_results2 = re_table.ParseText(output)
                 current_dccap = DCCAP(dccap_olt_gpon_port,dccap_interface_name,dccap_alias,dccap_sn,dccap_status)
+                if dccap_interface_name in dccap_cm:
+                    current_dccap.cable_modem_summary = dccap_cm[dccap_interface_name]
+                else:
+                    current_dccap.cable_modem_summary = DCCAP_modems_summary(0,0,0)
+
 		for channel_row in fsm_results2:
 			current_dccap.add_channel(channel_row[0],channel_row[1],int(channel_row[2]),int(channel_row[3]),int(channel_row[4]),int(channel_row[5]),int(channel_row[6]))
 		dccap.append(current_dccap)
@@ -169,6 +197,10 @@ if len(fsm_results) > 0:
 			    str_list.append(current_dccap.gpon_port)
 			    str_list.append(current_dccap.interface_cable)
 			    str_list.append(current_dccap.alias_name)
+			    str_list.append(str(current_dccap.cable_modem_summary.total))
+			    str_list.append(str(current_dccap.cable_modem_summary.online))
+			    str_list.append(str(current_dccap.cable_modem_summary.offline))
+			    str_list.append(str(current_dccap.alias_name))
 			    str_list.append(str(dccap_down))
 			    str_list.append(str(dccap_up))
 			    print((",").join(str_list))

@@ -1,0 +1,9 @@
+Value EXTENDING_PORT (\d+\/\s\d+\/\s\d+)
+Value TOTAL (\d+)
+Value ONLINE (\d+)
+Value OFFLINE (\d+)
+
+Start
+	^\s+${EXTENDING_PORT}\s+${TOTAL}\s+${ONLINE}\s+${OFFLINE}\s+\S+ -> Record
+
+
