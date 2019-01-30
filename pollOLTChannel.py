@@ -4,6 +4,8 @@ from netmiko.cisco_base_connection import CiscoSSHConnection
 from netmiko import log
 import textfsm
 import argparse
+from influxdb import InfluxDBClient
+from influxdb import SeriesHelper
 
 
 dccap = []
@@ -17,8 +19,74 @@ parser.add_argument('--ssh_user',dest='ssh_user',default='rfalla',help='SSH user
 parser.add_argument('--ssh_pwd',dest='ssh_pwd',default='rfalla214',help='SSH users password to connect to OLT')
 parser.add_argument('--community',dest='community',default='u2000_ro',help='SNMP read community')
 parser.add_argument('--per_channel_bw',dest='per_channel_bw',default=False,help='True if you want traffic per channel')
+parser.add_argument('--out_influxdb',dest='out_influxdb',default=False,help='True if you want to send to influxdb')
 
 args = parser.parse_args()
+
+myclient = InfluxDBClient('localhost', 8086, 'root', 'root', 'telegraf')
+
+class DCCAPSeriesHelper(SeriesHelper):
+    """Instantiate SeriesHelper to write points to the backend."""
+
+    class Meta:
+        """Meta class stores time series helper configuration."""
+
+        # The client should be an instance of InfluxDBClient.
+        client = myclient
+
+        # The series name must be a string. Add dependent fields/tags
+        # in curly brackets.
+        series_name = 'claro_dccap'
+
+        # Defines all the fields in this time series.
+        fields = ['gpon_port','interface_cable','cm_total','cm_online','cm_offline','downstream_traffic','upstream_traffic']
+        # Defines all the tags for the series.
+        tags = ['olt_name','alias_name']
+        # Defines the number of data points to store prior to writing
+        # on the wire.
+        bulk_size = 20
+
+        # autocommit must be set to True when using bulk_size
+        autocommit = True
+
+class OLTSeriesHelper(SeriesHelper):
+    """Instantiate SeriesHelper to write points to the backend."""
+
+    class Meta:
+        """Meta class stores time series helper configuration."""
+
+        # The client should be an instance of InfluxDBClient.
+        client = myclient
+
+        # The series name must be a string. Add dependent fields/tags
+        # in curly brackets.
+        series_name = 'claro_olt_dccap'
+
+        # Defines all the fields in this time series.
+        fields = ['total_dccaps','total_cm','total_cm_online','total_cm_offline','total_dccap_downlink','total_dccap_uplink']
+        # Defines all the tags for the series.
+        tags = ['olt_name']
+        # Defines the number of data points to store prior to writing
+        # on the wire.
+        bulk_size = 20
+
+        # autocommit must be set to True when using bulk_size
+        autocommit = True
+
+class OLT():
+        def __init__(self,name,ip,total_dccaps=0,total_cm=0, total_cm_online=0, total_cm_offline=0,olt_uplink=0,olt_downlink=0):
+                self.name=name
+                self.ip=ip
+                self.total_dccaps=total_dccaps
+                self.total_cm=total_cm
+                self.total_cm_online=total_cm_online
+                self.total_cm_offline=total_cm_offline
+                self.uplink = olt_uplink
+                self.downlink = olt_downlink
+
+        def update_influx_db(self):
+                OLTSeriesHelper(olt_name=self.name,total_dccaps=self.total_dccaps,total_cm=self.total_cm,total_cm_online=self.total_cm_online,total_cm_offline=self.total_cm_offline,total_dccap_downlink=self.downlink,total_dccap_uplink=self.uplink)
+
 
 class Docsis_Channel():
 	def __init__(self,name,type_docsis,utilization,real_traffic,max_traffic):
@@ -45,14 +113,19 @@ class DCCAP_modems_summary():
                 self.offline=Offline
 
 class DCCAP():
-	def __init__(self,olt_gpon_port,interface_cable,alias_name,serial,status):
-		self.interface_cable = interface_cable;
+	def __init__(self,olt_name,olt_gpon_port,interface_cable,alias_name,serial,status):
+	        self.olt_name=olt_name	
+                self.interface_cable = interface_cable;
 		self.alias_name = alias_name
 		self.gpon_port = olt_gpon_port
 		self.serial = serial
 		self.status = status
 		self.channels = []
                 self.cable_modem_summary = None
+
+        def update_influx_db(self):
+                (dccap_downstream,dccap_upstream)=self.get_total_bandwidth()
+                DCCAPSeriesHelper(olt_name=self.olt_name,alias_name=self.alias_name,gpon_port=self.gpon_port,interface_cable=self.interface_cable,cm_total=self.cable_modem_summary.total,cm_online=self.cable_modem_summary.online,cm_offline=self.cable_modem_summary.offline,downstream_traffic=dccap_downstream,upstream_traffic=dccap_upstream)
 	
 	def print_channel_summary(self):
 		print("channel,type_docsis,channel_utilization,real_traffic,max_traffic")
@@ -98,10 +171,11 @@ class HuaweiOLTSSH(CiscoSSHConnection):
         """Prepare the session after the connection has been established."""
         self._test_channel_read()
         self.set_base_prompt()
-        self.disable_paging(command="scroll 512")
+        self.disable_paging(command="scroll 512 ")
         # Clear the read buffer
         time.sleep(.3 * self.global_delay_factor)
         self.clear_buffer()
+        self.fast_cli=True
 
     def config_mode(self, config_command='config'):
         """Enter configuration mode."""
@@ -126,14 +200,15 @@ def print_header():
         else:
 	    print("olt_name,ip_address,gpon_port,interface_cable,alias_name,cm_total,cm_online,cm_offline,downstream_traffic,upstream_traffic")
 
-		
+
+current_olt = OLT(args.olt_name,args.ip_address);		
 net_connect = HuaweiOLTSSH(host=args.ip_address,username=args.ssh_user, password=args.ssh_pwd,device_type='cisco_ios')
 net_connect.enable()
 output = net_connect.send_command("display frame extension\n\n",normalize=False)
 
-template1 = open("olt_display_frame_extension.template")
-template2 = open("olt_cable_channel_utilization.template")
-template3 = open("olt_display_cable_modem_summary_statistics.template")
+template1 = open("/root/Scripts/pollOLTChannels/olt_display_frame_extension.template")
+template2 = open("/root/Scripts/pollOLTChannels/olt_cable_channel_utilization.template")
+template3 = open("/root/Scripts/pollOLTChannels/olt_display_cable_modem_summary_statistics.template")
 re_table = textfsm.TextFSM(template1)
 fsm_results = re_table.ParseText(output)
 
@@ -141,14 +216,14 @@ re_table = None
 re_table = textfsm.TextFSM(template3)
 output = net_connect.send_command("display cable modem summary statistics\n\n",normalize=False)
 fsm_results3 = re_table.ParseText(output)
-print(fsm_results3)
+#print(fsm_results3)
 
 if len(fsm_results3)>0:
     for row in fsm_results3:
                 dccap_interface_name = "CABLE " + str(row[0]).replace(" ","")
-                dccap_cm_total = str(row[1])
-                dccap_cm_online = str(row[2])
-                dccap_cm_offline = str(row[3])
+                dccap_cm_total = int(row[1])
+                dccap_cm_online = int(row[2])
+                dccap_cm_offline = int(row[3])
                 dccap_cm[dccap_interface_name] = DCCAP_modems_summary(dccap_cm_total,dccap_cm_online,dccap_cm_offline) 
 
 #re_table = textfsm.TextFSM(template2)
@@ -166,7 +241,7 @@ if len(fsm_results) > 0:
 		command = "display cable channel utilization " + str(row[2]) + "/1/0" + "\n\n"
 		output = net_connect.send_command(command,normalize=False)
 		fsm_results2 = re_table.ParseText(output)
-                current_dccap = DCCAP(dccap_olt_gpon_port,dccap_interface_name,dccap_alias,dccap_sn,dccap_status)
+                current_dccap = DCCAP(args.olt_name,dccap_olt_gpon_port,dccap_interface_name,dccap_alias,dccap_sn,dccap_status)
                 if dccap_interface_name in dccap_cm:
                     current_dccap.cable_modem_summary = dccap_cm[dccap_interface_name]
                 else:
@@ -178,7 +253,8 @@ if len(fsm_results) > 0:
 		
 		if first_time:
 			first_time=False
-			print_header()
+                        if args.out_influxdb==False:
+			    print_header()
                 if args.per_channel_bw:
 		        for current_channel in current_dccap.channels:
 			    str_list = []
@@ -188,7 +264,8 @@ if len(fsm_results) > 0:
 			    str_list.append(current_dccap.interface_cable)
 			    str_list.append(current_dccap.alias_name)
 			    str_list.append((",").join(current_channel.print_summary()))
-			    print((",").join(str_list))
+                            if args.out_influxdb==False:
+			        print((",").join(str_list))
                 else:
 			    (dccap_down,dccap_up)=(current_dccap.get_total_bandwidth()) 
                             str_list = []
@@ -203,8 +280,22 @@ if len(fsm_results) > 0:
 			    str_list.append(str(current_dccap.alias_name))
 			    str_list.append(str(dccap_down))
 			    str_list.append(str(dccap_up))
-			    print((",").join(str_list))
+                            if args.out_influxdb==False:
+			        print((",").join(str_list))
+                            else:
+                               current_dccap.update_influx_db()
+                            current_olt.total_dccaps+=1
+                            current_olt.total_cm+=current_dccap.cable_modem_summary.total
+                            current_olt.total_cm_online+=current_dccap.cable_modem_summary.online
+                            current_olt.total_cm_offline+=current_dccap.cable_modem_summary.offline
+                            current_olt.uplink+=dccap_up
+                            current_olt.downlink+=dccap_down
 
+
+if args.out_influxdb:
+        DCCAPSeriesHelper.commit()
+        current_olt.update_influx_db()
+        OLTSeriesHelper.commit()
 
 net_connect.disconnect()
 
