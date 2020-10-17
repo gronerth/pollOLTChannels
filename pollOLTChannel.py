@@ -120,7 +120,7 @@ class DCCAP_modems_summary():
 class DCCAP():
 	def __init__(self,olt_name,olt_gpon_port,interface_cable,alias_name,serial,status):
 	    self.olt_name=olt_name	
-        self.interface_cable = interface_cable;
+        self.interface_cable = interface_cable
 		self.alias_name = alias_name
 		self.gpon_port = olt_gpon_port
 		self.serial = serial
