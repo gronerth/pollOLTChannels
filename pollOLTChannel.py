@@ -17,18 +17,27 @@ olt_list = {}
 
 
 parser = argparse.ArgumentParser(description='Poll parameters from OLT')
-parser.add_argument('--ip',dest='ip_address',default="",help='Hostname or IP Address')
-parser.add_argument('--olt',dest='olt_name',default="",help='Name of the OLT')
-parser.add_argument('--olt_file',dest='olt_file_name',default="",help='File with the list of olts in csv format oltname,IP')
-parser.add_argument('--ssh_user',dest='ssh_user',default='rfalla',help='SSH user to connect to OLT')
-parser.add_argument('--ssh_pwd',dest='ssh_pwd',default='rfalla214',help='SSH users password to connect to OLT')
-parser.add_argument('--community',dest='community',default='u2000_ro',help='SNMP read community')
-parser.add_argument('--per_channel_bw',dest='per_channel_bw',default=False,help='True if you want traffic per channel')
-parser.add_argument('--out_influxdb',dest='out_influxdb',default=False,help='True if you want to send to influxdb')
+parser.add_argument('--ip', dest='ip_address', default="",
+                    help='Hostname or IP Address')
+parser.add_argument('--olt', dest='olt_name',
+                    default="", help='Name of the OLT')
+parser.add_argument('--olt_file', dest='olt_file_name', default="",
+                    help='File with the list of olts in csv format oltname,IP')
+parser.add_argument('--ssh_user', dest='ssh_user',
+                    default='rfalla', help='SSH user to connect to OLT')
+parser.add_argument('--ssh_pwd', dest='ssh_pwd', default='rfalla214',
+                    help='SSH users password to connect to OLT')
+parser.add_argument('--community', dest='community',
+                    default='u2000_ro', help='SNMP read community')
+parser.add_argument('--per_channel_bw', dest='per_channel_bw',
+                    default=False, help='True if you want traffic per channel')
+parser.add_argument('--out_influxdb', dest='out_influxdb',
+                    default=False, help='True if you want to send to influxdb')
 
 args = parser.parse_args()
 
 myclient = InfluxDBClient('localhost', 8086, 'root', 'root', 'telegraf')
+
 
 class DCCAPSeriesHelper(SeriesHelper):
     """Instantiate SeriesHelper to write points to the backend."""
@@ -44,15 +53,17 @@ class DCCAPSeriesHelper(SeriesHelper):
         series_name = 'claro_dccap'
 
         # Defines all the fields in this time series.
-        fields = ['gpon_port','interface_cable','cm_total','cm_online','cm_offline','downstream_traffic','upstream_traffic','total_d30_down','total_d30_up','total_d31_down','total_d31_up']
+        fields = ['gpon_port', 'interface_cable', 'cm_total', 'cm_online', 'cm_offline', 'downstream_traffic',
+            'upstream_traffic', 'total_d30_down', 'total_d30_up', 'total_d31_down', 'total_d31_up']
         # Defines all the tags for the series.
-        tags = ['olt_name','alias_name']
+        tags = ['olt_name', 'alias_name']
         # Defines the number of data points to store prior to writing
         # on the wire.
         bulk_size = 20
 
         # autocommit must be set to True when using bulk_size
         autocommit = True
+
 
 class OLTSeriesHelper(SeriesHelper):
     """Instantiate SeriesHelper to write points to the backend."""
@@ -68,7 +79,8 @@ class OLTSeriesHelper(SeriesHelper):
         series_name = 'claro_olt_dccap'
 
         # Defines all the fields in this time series.
-        fields = ['total_dccaps','total_cm','total_cm_online','total_cm_offline','total_dccap_downlink','total_dccap_uplink']
+        fields = ['total_dccaps', 'total_cm', 'total_cm_online',
+            'total_cm_offline', 'total_dccap_downlink', 'total_dccap_uplink']
         # Defines all the tags for the series.
         tags = ['olt_name']
         # Defines the number of data points to store prior to writing
@@ -78,30 +90,32 @@ class OLTSeriesHelper(SeriesHelper):
         # autocommit must be set to True when using bulk_size
         autocommit = True
 
+
 class OLT():
-        def __init__(self,name,ip,total_dccaps=0,total_cm=0, total_cm_online=0, total_cm_offline=0,olt_uplink=0,olt_downlink=0):
-                self.name=name
-                self.ip=ip
-                self.total_dccaps=total_dccaps
-                self.total_cm=total_cm
-                self.total_cm_online=total_cm_online
-                self.total_cm_offline=total_cm_offline
+        def __init__(self, name, ip, total_dccaps=0, total_cm=0, total_cm_online=0, total_cm_offline=0, olt_uplink=0, olt_downlink=0):
+                self.name = name
+                self.ip = ip
+                self.total_dccaps = total_dccaps
+                self.total_cm = total_cm
+                self.total_cm_online = total_cm_online
+                self.total_cm_offline = total_cm_offline
                 self.uplink = olt_uplink
                 self.downlink = olt_downlink
 
         def update_influx_db(self):
-                OLTSeriesHelper(olt_name=self.name,total_dccaps=self.total_dccaps,total_cm=self.total_cm,total_cm_online=self.total_cm_online,total_cm_offline=self.total_cm_offline,total_dccap_downlink=self.downlink,total_dccap_uplink=self.uplink)
+                OLTSeriesHelper(olt_name=self.name, total_dccaps=self.total_dccaps, total_cm=self.total_cm, total_cm_online=self.total_cm_online,
+                                total_cm_offline=self.total_cm_offline, total_dccap_downlink=self.downlink, total_dccap_uplink=self.uplink)
 
 
 class Docsis_Channel():
-	def __init__(self,name,type_docsis,utilization,real_traffic,max_traffic):
+	def __init__(self, name, type_docsis, utilization, real_traffic, max_traffic):
 		self.name = name
 		self.type_docsis = type_docsis
 		#self.cable_modems = 0
 		self.utilization = utilization
 		self.real_traffic = real_traffic
 		self.max_traffic = max_traffic
-	
+
 	def print_summary(self):
 		str_list = []
 		str_list.append(self.name)
@@ -111,34 +125,37 @@ class Docsis_Channel():
 		str_list.append(str(self.max_traffic))
 		return str_list
 
+
 class DCCAP_modems_summary():
-        def __init__(self,Total,Online,Offline):
-                self.total = Total
-                self.online= Online
-                self.offline=Offline
+    def __init__(self, Total, Online, Offline):
+        self.total = Total
+        self.online = Online
+        self.offline = Offline
+
 
 class DCCAP():
-	def __init__(self,olt_name,olt_gpon_port,interface_cable,alias_name,serial,status):
-	    self.olt_name=olt_name	
+	def __init__(self, olt_name, olt_gpon_port, interface_cable, alias_name, serial, status):
+	    self.olt_name = olt_name
         self.interface_cable = interface_cable
 		self.alias_name = alias_name
 		self.gpon_port = olt_gpon_port
 		self.serial = serial
 		self.status = status
 		self.channels = []
-                self.cable_modem_summary = None
+        self.cable_modem_summary = None
 
-        def update_influx_db(self):
-                (dccap_downstream,dccap_upstream)=self.get_total_bandwidth()
-                DCCAPSeriesHelper(olt_name=self.olt_name,alias_name=self.alias_name,gpon_port=self.gpon_port,interface_cable=self.interface_cable,
-								  cm_total=self.cable_modem_summary.total,cm_online=self.cable_modem_summary.online,cm_offline=self.cable_modem_summary.offline,
-								  downstream_traffic=dccap_downstream,upstream_traffic=dccap_upstream,total_d30_down=self.get_d30_down(),total_d30_up=self.get_d30_up(),total_d31_down=self.get_d31_down(),total_d31_up=self.get_d31_up())
+    def update_influx_db(self):
+        (dccap_downstream,dccap_upstream)=self.get_total_bandwidth()
+        DCCAPSeriesHelper(olt_name=self.olt_name,alias_name=self.alias_name,gpon_port=self.gpon_port,interface_cable=self.interface_cable,
+						  cm_total=self.cable_modem_summary.total,cm_online=self.cable_modem_summary.online,cm_offline=self.cable_modem_summary.offline,
+						  downstream_traffic=dccap_downstream,upstream_traffic=dccap_upstream,total_d30_down=self.get_d30_down(),total_d30_up=self.get_d30_up(),total_d31_down=self.get_d31_down(),total_d31_up=self.get_d31_up())
 	
 	def print_channel_summary(self):
 		print("channel,type_docsis,channel_utilization,real_traffic,max_traffic")
 		for current_channel in self.channels:
 			print(",".join(current_channel.print_summary()))
-        def get_total_bandwidth(self):
+    
+	def get_total_bandwidth(self):
                 downstream = 0
                 upstream = 0
                 for channel in self.channels:
