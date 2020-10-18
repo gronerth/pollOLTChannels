@@ -111,7 +111,7 @@ class Docsis_Channel():
 	def __init__(self, name, type_docsis, utilization, real_traffic, max_traffic):
 		self.name = name
 		self.type_docsis = type_docsis
-		#self.cable_modems = 0
+		# self.cable_modems = 0
 		self.utilization = utilization
 		self.real_traffic = real_traffic
 		self.max_traffic = max_traffic
@@ -132,42 +132,44 @@ class DCCAP_modems_summary():
         self.online = Online
         self.offline = Offline
 
-
 class DCCAP():
 	def __init__(self, olt_name, olt_gpon_port, interface_cable, alias_name, serial, status):
-	    self.olt_name = olt_name
-        self.interface_cable = interface_cable
-		self.alias_name = alias_name
-		self.gpon_port = olt_gpon_port
-		self.serial = serial
-		self.status = status
-		self.channels = []
-        self.cable_modem_summary = None
-
-    def update_influx_db(self):
-        (dccap_downstream,dccap_upstream)=self.get_total_bandwidth()
-        DCCAPSeriesHelper(olt_name=self.olt_name,alias_name=self.alias_name,gpon_port=self.gpon_port,interface_cable=self.interface_cable,
-						  cm_total=self.cable_modem_summary.total,cm_online=self.cable_modem_summary.online,cm_offline=self.cable_modem_summary.offline,
-						  downstream_traffic=dccap_downstream,upstream_traffic=dccap_upstream,total_d30_down=self.get_d30_down(),total_d30_up=self.get_d30_up(),total_d31_down=self.get_d31_down(),total_d31_up=self.get_d31_up())
+		self.olt_name=olt_name
+		self.olt_gpon_port=olt_gpon_port
+		self.interface_cable=interface_cable
+		self.alias_name=alias_name
+		self.serial=serial
+		self.status=status
+		self.channels=[]
+		self.cable_modem_summary=None
 	
+	def update_influx_db(self):
+		(dccap_downstream,dccap_upstream)=self.get_total_bandwidth()
+		DCCAPSeriesHelper(olt_name=self.olt_name,alias_name=self.alias_name,gpon_port=self.olt_gpon_port,interface_cable=self.interface_cable,
+		m_total=self.cable_modem_summary.total,cm_online=self.cable_modem_summary.online,cm_offline=self.cable_modem_summary.offline,downstream_traffic=dccap_downstream,
+		upstream_traffic=dccap_upstream,total_d30_down=self.get_d30_down(),total_d30_up=self.get_d30_up(),total_d31_down=self.get_d31_down(),total_d31_up=self.get_d31_up())
+  #  	DCCAPSeriesHelper(olt_name=self.olt_name,alias_name=self.alias_name,gpon_port=self.gpon_port,interface_cable=self.interface_cable, \
+	#	m_total=self.cable_modem_summary.total,cm_online=self.cable_modem_summary.online,cm_offline=self.cable_modem_summary.offline,downstream_traffic=dccap_downstream, \
+	#	upstream_traffic=dccap_upstream,total_d30_down=self.get_d30_down(),total_d30_up=self.get_d30_up(),total_d31_down=self.get_d31_down(),total_d31_up=self.get_d31_up())
+
 	def print_channel_summary(self):
 		print("channel,type_docsis,channel_utilization,real_traffic,max_traffic")
 		for current_channel in self.channels:
 			print(",".join(current_channel.print_summary()))
-    
+	
 	def get_total_bandwidth(self):
-                downstream = 0
-                upstream = 0
-                for channel in self.channels:
-                    is_upstream = channel.name[0]=='U'
-                    is_downstream = channel.name[0]=='D'
-                    if is_upstream:
-                        upstream += channel.real_traffic
-                    elif is_downstream:
-                        downstream += channel.real_traffic
+		downstream=0
+		upstream=0
+		for channel in self.channels:
+			is_upstream=channel.name[0]=='U'
+			is_downstream=channel.name[0]=='D'
+			if is_upstream:
+				upstream += channel.real_traffic
+			elif is_downstream:
+				downstream+=channel.real_traffic
+		return(downstream,upstream)
+    
 
-                return(downstream,upstream)
-				
 	def get_d30_down(self):
 		d30=0
 		for channel in self.channels:
@@ -203,16 +205,15 @@ class DCCAP():
 			type_docsis = "D2.0&D3.0"
 		else:
 			is_upstream = name[0]=='U'
-                	channel_number = int(name[1:])
-                	if is_upstream :
-                        	if channel_number > 10:
-                                	type_docsis = "D3.1"
-                	else:
-                        	if channel_number > 32:
-                                	type_docsis = "D3.1"
-
-		if max_traffic == 0:
-			type_docsis = "Docsis disabled"
+			channel_number=int(name[1:])
+			if is_upstream:
+				if channel_number>10:
+					type_docsis = "D3.1"
+				else:
+					if channel_number>32:
+						type_docsis="D3.1"
+		if max_traffic==0:
+			type_docsis="Docsis disabled"
 
 		utilization = d20 + d30 + d31
 		self.channels.append(Docsis_Channel(name,type_docsis,utilization,real_traffic,max_traffic))
@@ -247,15 +248,15 @@ class HuaweiOLTSSH(CiscoSSHConnection):
         return super(HuaweiOLTSSH, self).save_config(cmd=cmd, confirm=confirm)
 
 def print_header():
-        if args.per_channel_bw:
-			print("time,olt_name,ip_address,gpon_port,interface_cable,alias_name,channel,type_docsis,channel_utilization,real_traffic,max_traffic")
-        else:
-			print("time,olt_name,ip_address,gpon_port,interface_cable,alias_name,cm_total,cm_online,cm_offline,downstream_traffic,upstream_traffic,D30_Down,D30_Up,D31_Down,D31_Up")
+	if args.per_channel_bw:
+		print("olt_name,ip_address,gpon_port,interface_cable,alias_name,channel,type_docsis,channel_utilization,real_traffic,max_traffic")
+	else:
+		print("olt_name,ip_address,gpon_port,interface_cable,alias_name,cm_total,cm_online,cm_offline,downstream_traffic,upstream_traffic,D30_Down,D30_Up,D31_Down,D31_Up")
 
 			
 def polling_olt(olt_name,ip_address,ssh_user,ssh_pwd):
 
-	current_olt = OLT(olt_name,ip_address);		
+	current_olt = OLT(olt_name,ip_address)		
 	net_connect = HuaweiOLTSSH(host=ip_address,username=ssh_user, password=ssh_pwd,device_type='cisco_ios')
 	net_connect.enable()
 	output = net_connect.send_command("display frame extension\n\n",normalize=False)
@@ -276,11 +277,11 @@ def polling_olt(olt_name,ip_address,ssh_user,ssh_pwd):
 
 	if len(fsm_results3)>0:
 		for row in fsm_results3:
-					dccap_interface_name = "CABLE " + str(row[0]).replace(" ","")
-					dccap_cm_total = int(row[1])
-					dccap_cm_online = int(row[2])
-					dccap_cm_offline = int(row[3])
-					dccap_cm[dccap_interface_name] = DCCAP_modems_summary(dccap_cm_total,dccap_cm_online,dccap_cm_offline) 
+			dccap_interface_name = "CABLE " + str(row[0]).replace(" ","")
+			dccap_cm_total = int(row[1])
+			dccap_cm_online = int(row[2])
+			dccap_cm_offline = int(row[3])
+			dccap_cm[dccap_interface_name] = DCCAP_modems_summary(dccap_cm_total,dccap_cm_online,dccap_cm_offline) 
 
 	#re_table = textfsm.TextFSM(template2)
 	first_time = True
@@ -327,7 +328,7 @@ def polling_olt(olt_name,ip_address,ssh_user,ssh_pwd):
 						str_list.append(dt_string)
 					str_list.append(olt_name)
 					str_list.append(ip_address)
-					str_list.append(current_dccap.gpon_port)
+					str_list.append(current_dccap.olt_gpon_port)
 					str_list.append(current_dccap.interface_cable)
 					str_list.append(current_dccap.alias_name)
 					str_list.append((",").join(current_channel.print_summary()))
@@ -338,7 +339,7 @@ def polling_olt(olt_name,ip_address,ssh_user,ssh_pwd):
 				str_list = []
 				str_list.append(olt_name)
 				str_list.append(ip_address)
-				str_list.append(current_dccap.gpon_port)
+				str_list.append(current_dccap.olt_gpon_port)
 				str_list.append(current_dccap.interface_cable)
 				str_list.append(current_dccap.alias_name)
 				str_list.append(str(current_dccap.cable_modem_summary.total))
